@@ -1,6 +1,7 @@
-package remhttp
+package transports
 
 import (
+	"encoding/json"
 	"bytes"
 	"net/http"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/tedsuo/rata"
 	"io/ioutil"
 
-	goremote "../"
+	"github.com/paulcwarren/goremote"
 )
 
 type HttpTransport struct {
@@ -23,26 +24,36 @@ func NewHttpTransport(url string, routes rata.Routes) goremote.Transport {
 	}
 }
 
-func (t *HttpTransport) Send(msg string, body []byte) ([]byte, error) {
+func (t *HttpTransport) Send(tgt string, message interface{}, reply interface{}) (error) {
 
-	request, err := t.reqGen.CreateRequest(msg, nil, bytes.NewReader(body))
+	body, err := json.Marshal(message)
 	if err != nil {
-		return nil, err
+		return err
+	}
+
+	request, err := t.reqGen.CreateRequest(tgt, nil, bytes.NewReader(body))
+	if err != nil {
+		return err
 	}
 
 	response, err := t.HttpClient.Do(request)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	reply, err := ioutil.ReadAll(response.Body)
+	replyBytes, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if response.StatusCode == 500 { // and possibly 4xx codes as well
-		return reply, fmt.Errorf("HTTP Transport error")
+		return fmt.Errorf("HTTP Transport error")
+	} else {
+		err = json.Unmarshal(replyBytes, response)
+		if err != nil {
+			return err
+		}
 	}
 
-	return reply, nil
+	return nil
 }
